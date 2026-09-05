@@ -6,6 +6,21 @@
     <title>GFS بالعربي أحلى</title>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link href="https://fonts.googleapis.com/css2?family=Amiri:wght@400;700&family=IBM+Plex+Sans+Arabic:wght@400;500;600;700&display=swap" rel="stylesheet" />
+    <style>
+      #gfs-public-stats{max-width:1160px;margin:-38px auto 20px;padding:0 20px;position:relative;z-index:4;font-family:"IBM Plex Sans Arabic","Segoe UI",Tahoma,sans-serif}
+      #gfs-public-stats .gps-card{background:#fff;border:1px solid #dce4df;border-radius:14px;padding:13px 16px;box-shadow:0 12px 30px -24px rgba(11,46,51,.55)}
+      #gfs-public-stats .gps-title{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:9px;font-size:12px;font-weight:800;color:#3b5c60}
+      #gfs-public-stats .gps-live{display:inline-flex;align-items:center;gap:5px;font-size:10px;color:#14746f;font-weight:700}
+      #gfs-public-stats .gps-dot{width:7px;height:7px;border-radius:50%;background:#14746f;display:inline-block}
+      #gfs-public-stats .gps-grid{display:grid;grid-template-columns:repeat(4,minmax(100px,1fr));gap:9px}
+      #gfs-public-stats .gps-item{background:#f4f6f3;border-radius:10px;padding:9px;text-align:center}
+      #gfs-public-stats .gps-item b{display:block;font-size:20px;line-height:1.25;color:#0b2e33}
+      #gfs-public-stats .gps-item span{font-size:10px;color:#5a7074}
+      #gfs-public-stats .gps-tiers{display:grid;grid-template-columns:repeat(3,1fr);gap:7px;margin-top:8px}
+      #gfs-public-stats .gps-tier{font-size:10px;text-align:center;border-top:2px solid #dce4df;padding-top:5px;color:#526b70}
+      #gfs-public-stats .gps-tier b{font-size:12px;color:#0b2e33}
+      @media(max-width:700px){#gfs-public-stats{margin:-24px auto 14px;padding:0 14px}#gfs-public-stats .gps-grid{grid-template-columns:repeat(2,1fr)}}
+    </style>
   </head>
   <body style="margin:0">
     <div id="root"></div>
@@ -36,8 +51,8 @@
           const input = document.getElementById("nm");
           if (!input) return;
           const label = document.querySelector('label[for="nm"]');
-          if (label) label.textContent = "اسم الطالب (ثنائي أو ثلاثي)";
-          input.placeholder = "مثال: أحمد محمد أو أحمد محمد علي";
+          if (label && label.textContent !== "اسم الطالب (ثنائي أو ثلاثي)") label.textContent = "اسم الطالب (ثنائي أو ثلاثي)";
+          if (input.placeholder !== "مثال: أحمد محمد أو أحمد محمد علي") input.placeholder = "مثال: أحمد محمد أو أحمد محمد علي";
         }
 
         document.addEventListener("focusin", (e) => {
@@ -51,7 +66,10 @@
 
           const input = document.getElementById("nm");
           const sidInput = document.getElementById("sid");
-          if (!input || !sidInput || !button.closest(".lh-panel")) return;
+          if (!input || !sidInput) return;
+
+          const loginArea = button.closest(".lh-panel") || button.closest(".card");
+          if (!loginArea) return;
 
           refreshWording();
           const nameWords = parts(input.value);
@@ -80,10 +98,118 @@
             }
           } catch {}
 
-          // If no registered match exists, let the app's own validation run.
           replay = true;
           button.click();
         }, true);
+
+        let latestStats = null;
+
+        function numberText(v) {
+          return Number.isFinite(Number(v)) ? Number(v).toLocaleString("ar-AE") : "—";
+        }
+
+        function applyExistingDashboard(stats) {
+          const active = document.querySelector(".lx-active strong");
+          if (active) active.textContent = numberText(stats.activeNow);
+
+          const tierData = [stats.tiers?.advanced, stats.tiers?.progressing, stats.tiers?.support];
+          document.querySelectorAll(".lx-tier").forEach((el, i) => {
+            const t = tierData[i];
+            if (!t) return;
+            const strong = el.querySelector("strong");
+            const small = el.querySelector("small");
+            if (strong) strong.textContent = `${t.pct}%`;
+            if (small) small.textContent = `${numberText(t.count)} طالب`;
+          });
+
+          document.querySelectorAll(".lh-stats .lh-stat").forEach((el) => {
+            const label = (el.querySelector("span")?.textContent || "").trim();
+            const value = el.querySelector("b");
+            if (!value) return;
+            if (label.includes("طالب")) value.textContent = numberText(stats.students);
+            else if (label.includes("كورس")) value.textContent = numberText(stats.publishedCourses);
+            else if (label.includes("شهادة")) value.textContent = numberText(stats.certificates);
+          });
+
+          const note = document.querySelector(".lh-gauge-note");
+          if (note) note.textContent = `نسبة إنجاز الطلاب لكورساتهم المُسنَدة (${numberText(stats.studentsWithAssignedCourses)} طالب لديهم كورسات)`;
+        }
+
+        function ensureSimpleDashboard(stats) {
+          const root = document.getElementById("root");
+          if (!root) return;
+          const loginVisible = document.getElementById("nm") || document.querySelector(".lh-wrap");
+          let panel = document.getElementById("gfs-public-stats");
+
+          if (!loginVisible) {
+            if (panel) panel.remove();
+            return;
+          }
+
+          if (document.querySelector(".lx-tiers") || document.querySelector(".lh-stats")) {
+            if (panel) panel.remove();
+            return;
+          }
+
+          if (!panel) {
+            panel = document.createElement("section");
+            panel.id = "gfs-public-stats";
+            root.insertAdjacentElement("afterend", panel);
+          }
+
+          const a = stats.tiers?.advanced || {count:0,pct:0};
+          const p = stats.tiers?.progressing || {count:0,pct:0};
+          const s = stats.tiers?.support || {count:0,pct:0};
+          panel.innerHTML = `
+            <div class="gps-card">
+              <div class="gps-title"><span>بيانات المنصة الحية</span><span class="gps-live"><i class="gps-dot"></i> من قاعدة البيانات مباشرة</span></div>
+              <div class="gps-grid">
+                <div class="gps-item"><b>${numberText(stats.students)}</b><span>طالب مسجّل</span></div>
+                <div class="gps-item"><b>${numberText(stats.publishedCourses)}</b><span>كورس منشور</span></div>
+                <div class="gps-item"><b>${numberText(stats.attempts)}</b><span>محاولة اختبار</span></div>
+                <div class="gps-item"><b>${numberText(stats.certificates)}</b><span>شهادة إتقان</span></div>
+              </div>
+              <div class="gps-tiers">
+                <div class="gps-tier">متقدم: <b>${a.pct}%</b> (${numberText(a.count)})</div>
+                <div class="gps-tier">في تقدم: <b>${p.pct}%</b> (${numberText(p.count)})</div>
+                <div class="gps-tier">يحتاج دعمًا: <b>${s.pct}%</b> (${numberText(s.count)})</div>
+              </div>
+            </div>`;
+        }
+
+        function applyStats(stats) {
+          latestStats = stats;
+          applyExistingDashboard(stats);
+          ensureSimpleDashboard(stats);
+        }
+
+        async function refreshStats() {
+          try {
+            const r = await fetch(`/api/public-stats?t=${Date.now()}`, { cache: "no-store" });
+            if (!r.ok) return;
+            const data = await r.json();
+            if (!data || data.error) return;
+            applyStats(data);
+          } catch {}
+        }
+
+        let queued = false;
+        new MutationObserver(() => {
+          if (queued) return;
+          queued = true;
+          requestAnimationFrame(() => {
+            queued = false;
+            refreshWording();
+            if (latestStats) {
+              applyExistingDashboard(latestStats);
+              ensureSimpleDashboard(latestStats);
+            }
+          });
+        }).observe(document.documentElement, { childList: true, subtree: true });
+
+        document.addEventListener("DOMContentLoaded", refreshStats);
+        setTimeout(refreshStats, 1200);
+        setInterval(refreshStats, 60000);
       })();
     </script>
     <script type="module" src="/src/main.jsx"></script>
