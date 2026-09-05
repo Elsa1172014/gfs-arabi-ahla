@@ -9,6 +9,83 @@
   </head>
   <body style="margin:0">
     <div id="root"></div>
+    <script>
+      (() => {
+        let replay = false;
+
+        const normalizeName = (value = "") => String(value)
+          .normalize("NFKC")
+          .replace(/[\u064B-\u065F\u0670\u06D6-\u06ED]/g, "")
+          .replace(/ـ/g, "")
+          .replace(/[أإآٱ]/g, "ا")
+          .replace(/ى/g, "ي")
+          .trim()
+          .replace(/\s+/g, " ")
+          .toLowerCase();
+
+        const parts = (value) => normalizeName(value).split(" ").filter(Boolean);
+
+        function setReactInputValue(input, value) {
+          const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")?.set;
+          if (setter) setter.call(input, value); else input.value = value;
+          input.dispatchEvent(new Event("input", { bubbles: true }));
+          input.dispatchEvent(new Event("change", { bubbles: true }));
+        }
+
+        function refreshWording() {
+          const input = document.getElementById("nm");
+          if (!input) return;
+          const label = document.querySelector('label[for="nm"]');
+          if (label) label.textContent = "اسم الطالب (ثنائي أو ثلاثي)";
+          input.placeholder = "مثال: أحمد محمد أو أحمد محمد علي";
+        }
+
+        document.addEventListener("focusin", (e) => {
+          if (e.target?.id === "nm") refreshWording();
+        });
+
+        document.addEventListener("click", async (event) => {
+          const button = event.target.closest("button");
+          if (!button) return;
+          if (replay) { replay = false; return; }
+
+          const input = document.getElementById("nm");
+          const sidInput = document.getElementById("sid");
+          if (!input || !sidInput || !button.closest(".lh-panel")) return;
+
+          refreshWording();
+          const nameWords = parts(input.value);
+          if (nameWords.length !== 2 && nameWords.length !== 3) return;
+          if (!/^\d{6}$/.test(sidInput.value)) return;
+
+          event.preventDefault();
+          event.stopPropagation();
+          event.stopImmediatePropagation();
+
+          try {
+            const response = await fetch("/api/student-resolve", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ name: input.value, sid: sidInput.value })
+            });
+            const data = await response.json().catch(() => ({}));
+
+            if (response.ok && data.fullName) {
+              setReactInputValue(input, data.fullName);
+              requestAnimationFrame(() => {
+                replay = true;
+                button.click();
+              });
+              return;
+            }
+          } catch {}
+
+          // If no registered match exists, let the app's own validation run.
+          replay = true;
+          button.click();
+        }, true);
+      })();
+    </script>
     <script type="module" src="/src/main.jsx"></script>
   </body>
 </html>
